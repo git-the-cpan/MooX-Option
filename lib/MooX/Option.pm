@@ -12,76 +12,100 @@ package MooX::Option;
 
 use strict;
 use warnings;
+our $VERSION = '0.2';    # VERSION
 use Carp;
 use Data::Dumper;
 use Getopt::Long::Descriptive;
-our $VERSION = '0.1';    # VERSION
+use Regexp::Common;
+use Data::Record;
 
 my %_default_options = (
-    'creation_method'      => 'new',
-    'chain_method'         => 'has',
-    'option_method_name'   => 'option',
-    'creation_method_name' => 'new_with_options',
+    'creation_chain_method' => 'new',
+    'creation_method_name'  => 'new_with_options',
+    'option_chain_method'   => 'has',
+    'option_method_name'    => 'option',
 );
 
-my %_filter_chain = (
-    'Mo'    => undef,
-    'Moo'   => undef,
-    'Mouse' => [qw/format short repeatable negativable autosplit/],
-    'Moose' => [qw/format short repeatable negativable autosplit/],
-);
+my @_filter = qw/format short repeatable negativable autosplit doc/;
 
 sub import {
     my ( undef, @_params ) = @_;
-    my (%options) = ( %_default_options, @_params );
+    my (%import_options) = ( %_default_options, @_params );
     my $caller = caller;
+
+    #check options and definition
+    while ( my ( $key, $method ) = each %_default_options ) {
+        croak "missing option $key, check doc to define one" unless $method;
+        croak "method $method is not defined, check doc to use another name"
+            if $key =~ /_chain_method$/ && !$caller->can($method);
+        croak "method $method already defined, check doc to use another name"
+            if $key =~ /_method_name$/ && $caller->can($method);
+    }
 
     my @_options              = ('USAGE: %c %o');
     my @_attributes           = ();
     my @_required_attributes  = ();
-    my @_autosplit_attributes = ();
-
-    my @_filter_chain_key;
-    @_filter_chain_key = @{ $_filter_chain{ $options{filter} } }
-        if $options{filter} && defined $_filter_chain{ $options{filter} };
+    my %_autosplit_attributes = ();
 
     {
 
         #keyword option
-        my $chain_method = $caller->can( $options{chain_method} );
-        croak "No method ", $options{chain_method}, " found"
-            unless $chain_method;
-        croak "No method name for option" unless $options{option_method_name};
-        croak "Method ", $options{option_method_name}, " already defined !"
-            if $caller->can( $options{option_method_name} );
+        my $chain_method
+            = $caller->can( $import_options{option_chain_method} );
 
         no strict 'refs';
-        *{"${caller}::$options{option_method_name}"} = sub {
+        *{"${caller}::$import_options{option_method_name}"} = sub {
             my ( $name, %options ) = @_;
+            croak
+                "Negativable params is not usable with non boolean value, don't pass format to use it !"
+                if $options{negativable} && $options{format};
+            croak "Can't use option with help, it is implied by MooX::Option"
+                if $name eq 'help';
+
+            #fix missing option, autosplit implie repeatable
+            $options{repeatable} = 1 if $options{autosplit};
 
             #help is use for help message only
-            if ( $name ne 'help' ) {
-                my $name_long_and_short = join "|", grep { defined $_ } $name,
-                    $options{short};
-                $name_long_and_short .= "+" if $options{repeatable};
-                $name_long_and_short .= "!" if $options{negativable};
-                my $name_format = join "=",
-                    grep { defined $_ } $name_long_and_short,
-                    $options{format};
-                push @_options,
-                    [ $name_format, $options{doc} // "no doc for $name" ];
-                push @_attributes,           $name;
-                push @_required_attributes,  $name if $options{required};
-                push @_autosplit_attributes, $name
-                    if $options{autosplit}
-                        && $options{format}
-                        && substr( $options{format}, -1 ) eq '@';
+            my $name_long_and_short = join "|", grep { defined $_ } $name,
+                $options{short};
+
+            #fix format for negativable or add + if it is a boolean
+            if ( $options{repeatable} ) {
+                if ( $options{format} ) {
+                    $options{format} .= "@"
+                        unless substr( $options{format}, -1 ) eq '@';
+                }
+                else {
+                    $name_long_and_short .= "+";
+                }
             }
 
-            if (@_filter_chain_key) {
-                delete $options{$_} for @_filter_chain_key;
+            #negativable for boolean value
+            $name_long_and_short .= "!" if $options{negativable};
+
+            #format the name
+            my $name_format = join "=",
+                grep { defined $_ } $name_long_and_short, $options{format};
+
+            push @_options,
+                [ $name_format, $options{doc} // "no doc for $name" ]
+                ;    # prepare option for getopt
+            push @_attributes, $name;    # save the attribute for later use
+            push @_required_attributes, $name
+                if $options{required};    # save the required attribute
+            $_autosplit_attributes{$name}
+                = Data::Record->new(
+                { split => $options{autosplit}, unless => $RE{quoted} } )
+                if $options{autosplit};    # save autosplit value
+
+#remove bad key for passing to chain_method(has), avoid warnings with Moo/Moose
+#by defaut, keep all key
+            unless ( $options{nofilter} ) {
+                delete $options{$_} for @_filter;
                 @_ = ( $name, %options );
             }
+
+            #chain to chain_method (has)
             goto &$chain_method;
         };
     }
@@ -89,33 +113,29 @@ sub import {
     {
 
         #keyword new_with_options
-        my $creation_method = $caller->can( $options{creation_method} );
-        croak "No method ", $options{creation_method}, " found"
-            unless $creation_method;
-        croak "No method name for creation"
-            unless $options{creation_method_name};
-        croak "Method ", $options{creation_method_name}, " already defined !"
-            if $caller->can( $options{creation_method_name} );
+        my $creation_method
+            = $caller->can( $import_options{creation_chain_method} );
 
         no strict 'refs';
-        *{"${caller}::$options{creation_method_name}"} = sub {
+        *{"${caller}::$import_options{creation_method_name}"} = sub {
             my ( $self, %params ) = @_;
 
 #if autosplit attributes is present, search and replace in ARGV with full version
 #ex --test=1,2,3 become --test=1 --test=2 --test=3
-            if (@_autosplit_attributes) {
-                my $_autosplit_regex_str
-                    = '^--?('
-                    . ( join( '|', @_autosplit_attributes ) )
-                    . ')=([^,]+,[^$]+)';
-                my $_autosplit_regex = qr{$_autosplit_regex_str};
+            if (%_autosplit_attributes) {
                 my @_ARGV;
+
+                #parse all argv
                 for my $arg (@ARGV) {
-                    if ( my ( $name, $values_str )
-                        = ( $arg =~ $_autosplit_regex ) )
-                    {
-                        push @ARGV, "--$name=$_"
-                            for split( /,/, $values_str );
+                    my ( $arg_name, $arg_values ) = split( /=/, $arg, 2 );
+                    $arg_name =~ s/^--?//;
+                    if ( my $rec = $_autosplit_attributes{$arg_name} ) {
+                        foreach my $record ( $rec->records($arg_values) ) {
+
+                            #remove the quoted if exist to chain
+                            $record =~ s/^['"]|['"]$//g;
+                            push @_ARGV, "--$arg_name=$record";
+                        }
                     }
                     else {
                         push @_ARGV, $arg;
@@ -164,24 +184,7 @@ MooX::Option - add option keywords to your Moo object
 
 =head1 VERSION
 
-version 0.1
-
-=head1 SYNOPSIS
-
-    {
-        package t; 
-        use Moo; use MooX::Option;
-
-        option "str" => (
-            is => 'ro',
-            required => '1',
-            doc => "My String Option",
-            format => 'Bool',
-        );
-        1;
-    }
-
-    my $opt = t->new_with_options();
+version 0.2
 
 =head1 MooX::Option
 
@@ -201,31 +204,17 @@ The import method can take option :
 
 =item %options
 
-creation_method : call this method after parsing option, default : new
-
-chain_method : call this method to create the attribute, default : has
-
-option_method_name : name of keyword you want to use to create your option, default : option
+creation_chain_method : call this method after parsing option, default : new
 
 creation_method_name : name of new method to handle option, default : new_with_options
 
-filter : 
+option_chain_method : call this method to create the attribute, default : has
 
-by default all params is passed to the chain_method, 
-but you can have warning with some method, 
-you can use the filter I have set to remove some params to the chain method
+option_method_name : name of keyword you want to use to create your option, default : option
 
-available filter : Mo, Moo, Mouse, Moose
+nofilter : don't filter extra params for MooX::Option before calling chain_method 
 
-=item Example
-
-    use MooX::Option creation_method => 'my_new_method', chain_method => 'my_chain_method';
-
-Filter for specific object model : (Mo and Moo don t need any filter, you can obmit the params)
-    {package pmo; use Mo; use MooX::Option filter => 'Mo'};
-    {package pmoo; use Moo; use MooX::Option filter => 'Moo'};
-    {package pmouse; use Mouse; use MooX::Option filter => 'Mouse'};
-    {package pmoose; use Moose; use MooX::Option filter => 'Moose'};
+it is usefull if you want to use this params for something else
 
 =back
 

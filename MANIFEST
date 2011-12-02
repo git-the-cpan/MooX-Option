@@ -4,11 +4,11 @@ LICENSE
 MANIFEST
 META.yml
 README
+TODO
 dist.ini
 lib/MooX/Option.pm
 perlcriticrc
 perltidyrc
-t.pl
 t/00-compile.t
 t/000-report-versions.t
 t/author-critic.t

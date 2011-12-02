@@ -30,7 +30,7 @@ BEGIN {
     option 'bool'    => ( is => 'ro' );
     option 'counter' => ( is => 'ro', repeatable => 1 );
     option 'empty'   => ( is => 'ro', negativable => 1 );
-    option 'split'   => ( is => 'ro', format => 'i@', autosplit => 1 );
+    option 'split'   => ( is => 'ro', format => 'i@', autosplit => ',' );
 
     1;
 }
@@ -45,7 +45,16 @@ BEGIN {
 
     1;
 }
+{
 
+    package sp_str;
+    use Mouse;
+    use MooX::Option filter => 'Mouse';
+
+    option 'split_str' => ( is => 'ro', format => 's', autosplit => "," );
+
+    1;
+}
 subtest "Mouse" => sub {
     note "Test Mouse";
     require $RealBin . '/base.st';

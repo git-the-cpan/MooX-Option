@@ -30,7 +30,7 @@ my %module_build_args = (
     "Geistteufel <geistteufel\@celogeek.fr>"
   ],
   "dist_name" => "MooX-Option",
-  "dist_version" => "0.1",
+  "dist_version" => "0.2",
   "license" => "perl",
   "module_name" => "MooX::Option",
   "recommends" => {},
@@ -38,7 +38,9 @@ my %module_build_args = (
   "requires" => {
     "Carp" => 0,
     "Data::Dumper" => 0,
+    "Data::Record" => 0,
     "Getopt::Long::Descriptive" => 0,
+    "Regexp::Common" => 0,
     "perl" => "5.010",
     "strict" => 0,
     "warnings" => 0
