@@ -12,7 +12,7 @@ package MooX::Option;
 
 use strict;
 use warnings;
-our $VERSION = '0.5';    # VERSION
+our $VERSION = '0.6';    # VERSION
 use Carp;
 use Data::Dumper;
 use Getopt::Long::Descriptive;
@@ -46,6 +46,7 @@ sub import {
     my @_attributes           = ();
     my @_required_attributes  = ();
     my %_autosplit_attributes = ();
+    my $_usage                = "";
 
     {
 
@@ -111,6 +112,16 @@ sub import {
 
     {
 
+        #keyword option
+        no strict 'refs';
+        *{"${caller}::$import_options{option_method_name}_usage"} = sub {
+            my ( $code, @messages ) = @_;
+            print( join( "\n", @messages, $_usage ) ), exit($code);
+            }
+    }
+
+    {
+
         #keyword new_with_options
         no strict 'refs';
         *{"${caller}::$import_options{creation_method_name}"} = sub {
@@ -141,10 +152,13 @@ sub import {
             }
 
             #call describe_options
+            my $usage_method
+                = $self->can("$import_options{option_method_name}_usage");
             my ( $opt, $usage )
                 = describe_options( @_options,
                 [ "help|h", "show this help message" ] );
-            print( $usage->text ), exit if $opt->help;
+            $_usage = $usage->text;
+            $usage_method->(0) if $opt->help;
 
             #replace command line attribute in params if params not defined
             my @_existing_attributes = grep {
@@ -155,12 +169,7 @@ sub import {
             #check required params, if anything missing, display help
             my @_missing_params
                 = grep { !defined $params{$_} } @_required_attributes;
-            print(
-                join( "\n",
-                    ( map {"$_ is missing"} @_missing_params ),
-                    $usage->text )
-                ),
-                exit(1)
+            $usage_method->( 1, map {"$_ is missing"} @_missing_params )
                 if @_missing_params;
 
             #call creation_method
@@ -183,7 +192,7 @@ MooX::Option - add option keywords to your Moo object
 
 =head1 VERSION
 
-version 0.5
+version 0.6
 
 =head1 MooX::Option
 
@@ -203,17 +212,33 @@ The import method can take option :
 
 =item %options
 
-creation_chain_method : call this method after parsing option, default : new
+=over
 
-creation_method_name : name of new method to handle option, default : new_with_options
+=item creation_chain_method
 
-option_chain_method : call this method to create the attribute, default : has
+call this method after parsing option, default : new
 
-option_method_name : name of keyword you want to use to create your option, default : option
+=item creation_method_name
 
-nofilter : don't filter extra params for MooX::Option before calling chain_method 
+name of new method to handle option, default : new_with_options
+
+=item option_chain_method
+
+call this method to create the attribute, default : has
+
+=item option_method_name
+
+name of keyword you want to use to create your option, default : option
+
+it will create ${option_method_name}_usage too, ex: option_usage($exit_code, @{additional messages})
+
+=item nofilter
+
+don't filter extra params for MooX::Option before calling chain_method 
 
 it is usefull if you want to use this params for something else
+
+=back
 
 =back
 
@@ -234,7 +259,41 @@ First of all, I use L<Getopt::Long::Descriptive>. Everything will be pass to the
 
 The keyword "option" work exactly like the keyword "has" and take extra argument of Getopt.
 
-=head2 EXTRA ARGS
+=head2 Keyword 'option_usage'
+
+It display the usage message and return the exit code
+
+    option_usage(1, "str is not valid");
+
+Params :
+
+=over
+
+=item $exit_code
+
+Exit code after displaying the usage message
+
+=item @messages
+
+Additional message to display before the usage message
+
+Ex: str is not valid
+
+=back
+
+=head2 Keyword 'new_with_options'
+
+It will parse your command line params and your inline params, validate and call the 'new' method.
+
+You can override the command line params :
+
+Ex:
+
+    @ARGV=('--str=ko');
+    t->new_with_options(str => 'ok');
+    t->str; #ok
+
+=head2 Keyword 'option' : EXTRA ARGS
 
 =over
 
