@@ -12,7 +12,7 @@ package MooX::Option;
 
 use strict;
 use warnings;
-our $VERSION = '0.4';    # VERSION
+our $VERSION = '0.5';    # VERSION
 use Carp;
 use Data::Dumper;
 use Getopt::Long::Descriptive;
@@ -183,7 +183,7 @@ MooX::Option - add option keywords to your Moo object
 
 =head1 VERSION
 
-version 0.4
+version 0.5
 
 =head1 MooX::Option
 
@@ -288,7 +288,8 @@ Ex :
 
 =item autosplit
 
-auto split args to generate multiple value. You need to specified the format with "@" to make it work.
+auto split args to generate multiple value. It implie "repeatable".
+autosplit take the separator value, ex: ",".
 
 Ex :
 
@@ -296,12 +297,25 @@ Ex :
     use Moo;
     use MooX::Option;
     
-    option test => (is => 'ro', format => 'i@', autosplit => 1);
+    option test => (is => 'ro', format => 'i@', autosplit => ',');
+    #same as : option test => (is => 'ro', format => 'i', autosplit => ',');
     1;
     
     @ARGV=('--test=1,2,3,4');
     my $t = t->new_with_options;
     t->test # [1,2,3,4]
+
+I automatically take the quoted as a group separator value
+
+    package str;
+    use Moo;
+    use MooX::Option;
+    option test => (is => 'ro', format => 's', repeatable => 1, autosplit => ',');
+    1;
+    
+    @ARGV=('--test=a,b,"c,d",e');
+    my $t = str->new_with_options;
+    t->test # ['a','b','c,d','e']
 
 =item short
 
@@ -326,9 +340,7 @@ Ex :
 
 =over
 
-=item Matt S. Trout (mst) <mst@shadowcat.co.uk>
-
-For his patience and advice.
+=item Matt S. Trout (mst) <mst@shadowcat.co.uk> : For his patience and advice.
 
 =back
 
