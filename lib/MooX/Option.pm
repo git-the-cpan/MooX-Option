@@ -12,7 +12,7 @@ package MooX::Option;
 
 use strict;
 use warnings;
-our $VERSION = '0.3';    # VERSION
+our $VERSION = '0.4';    # VERSION
 use Carp;
 use Data::Dumper;
 use Getopt::Long::Descriptive;
@@ -50,9 +50,6 @@ sub import {
     {
 
         #keyword option
-        my $chain_method
-            = $caller->can( $import_options{option_chain_method} );
-
         no strict 'refs';
         *{"${caller}::$import_options{option_method_name}"} = sub {
             my ( $name, %options ) = @_;
@@ -106,6 +103,8 @@ sub import {
             }
 
             #chain to chain_method (has)
+            my $chain_method
+                = $caller->can( $import_options{option_chain_method} );
             goto &$chain_method;
         };
     }
@@ -113,9 +112,6 @@ sub import {
     {
 
         #keyword new_with_options
-        my $creation_method
-            = $caller->can( $import_options{creation_chain_method} );
-
         no strict 'refs';
         *{"${caller}::$import_options{creation_method_name}"} = sub {
             my ( $self, %params ) = @_;
@@ -169,6 +165,9 @@ sub import {
 
             #call creation_method
             @_ = ( $self, %params );
+
+            my $creation_method
+                = $caller->can( $import_options{creation_chain_method} );
             goto &$creation_method;
         };
     }
@@ -184,7 +183,7 @@ MooX::Option - add option keywords to your Moo object
 
 =head1 VERSION
 
-version 0.3
+version 0.4
 
 =head1 MooX::Option
 

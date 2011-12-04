@@ -20,6 +20,7 @@ my %module_build_args = (
     "Scalar::Util" => 0,
     "Test::More" => "0.94",
     "Test::Trap" => 0,
+    "Try::Tiny" => 0,
     "perl" => "5.004"
   },
   "configure_requires" => {
@@ -30,7 +31,7 @@ my %module_build_args = (
     "Geistteufel <geistteufel\@celogeek.fr>"
   ],
   "dist_name" => "MooX-Option",
-  "dist_version" => "0.3",
+  "dist_version" => "0.4",
   "license" => "perl",
   "module_name" => "MooX::Option",
   "recommends" => {},

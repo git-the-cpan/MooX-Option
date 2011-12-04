@@ -16,6 +16,7 @@ build_requires:
   Scalar::Util: 0
   Test::More: 0.94
   Test::Trap: 0
+  Try::Tiny: 0
   perl: 5.004
 configure_requires:
   Module::Build: 0.3601
@@ -35,4 +36,4 @@ requires:
   perl: 5.010
   strict: 0
   warnings: 0
-version: 0.3
+version: 0.4
